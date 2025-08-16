@@ -51,34 +51,45 @@ Follow these steps to run the project locally:
 
 ### 1️ Clone the Repository
 
-````bash
+```bash
 git clone https://github.com/yourusername/ai-car-chatbot.git
 cd ai-car-chatbot
+```
 
 ### 2️ Install Dependencies
+
 ```bash
 # Install frontend dependencies
 cd client
 npm install
+```
 
 # Install backend dependencies
+
+```bash
 cd ../server
 npm install
+```
 
 ### 3 Set UP Environmental Variables
+
 OPENAI_API_KEY=your_openai_api_key
 PORT=5000
 
 ### 4 Run the App
+
 # Start backend server
+
 cd server
 npm run dev
 
 # Start frontend
+
 cd ../client
 npm run dev
 
 ## Deployment (Railway)
+
 1. Push your repo to GitHub.
 
 2. Go to Railway and create a new project.
@@ -88,4 +99,3 @@ npm run dev
 4. Add your OPENAI_API_KEY in Railway’s environment variables.
 
 5. Deploy 🚀
-````
