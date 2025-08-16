@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI Car Advisor</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f7f7f7; }
+    .chat-container { max-width: 700px; margin: 50px auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+
+    /* Title bubble */
+    .chat-title {
+      display: block;
+      background: #1a73e8;
+      color: #fff;
+      font-size: 24px;
+      font-weight: bold;
+      padding: 12px 20px;
+      border-radius: 25px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      text-align: center;
+      margin: 0 auto 15px;
+      width: fit-content;
+    }
+
+    .messages { height: 500px; overflow-y: auto; padding: 10px; background: #fafafa; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
+    .message { margin: 0; max-width: 80%; padding: 10px; border-radius: 8px; line-height: 1.4; display: flex; align-items: center; position: relative; }
+    .user { background: #1a73e8; color: #fff; margin-left: auto; text-align: right; }
+    .bot { background: #e9ecef; color: #333; margin-right: auto; text-align: left; flex-direction: column; align-items: flex-start; }
+
+    .input-area { display: flex; gap: 10px; }
+    input[type=text] { flex: 1; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; }
+    button { padding: 10px 15px; border-radius: 5px; border: none; background: #1a73e8; color: #fff; font-size: 16px; cursor: pointer; }
+    button:hover { background: #1558b0; }
+
+    /* Spinner on the right, vertically centered */
+    .spinner {
+      border: 3px solid #f3f3f3;
+      border-top: 3px solid #1a73e8;
+      border-radius: 50%;
+      width: 18px;
+      height: 18px;
+      animation: spin 1s linear infinite;
+      display: inline-block;
+      margin-left: 10px;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    /* Car card styling */
+    .car-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #fff;
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.1);
+      width: 100%;
+    }
+    .car-card img { width: 200px; height: auto; border-radius: 6px; margin-top: 8px; }
+    .car-title { font-weight: bold; font-size: 16px; margin-bottom: 4px; color: #333; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="chat-container">
+    <div class="chat-title">AI POWERED CAR ADVISOR</div>
+    <div class="messages" id="messages"></div>
+    <div class="input-area">
+      <input type="text" id="userInput" placeholder="Ask about cars..." />
+      <button onclick="sendMessage()">Send</button>
+    </div>
+  </div>
+
+  <script>
+    async function sendMessage() {
+      const input = document.getElementById('userInput');
+      const messagesDiv = document.getElementById('messages');
+      const userText = input.value.trim();
+      if (!userText) return;
+
+      // Show user's message
+      const userMsg = document.createElement('div');
+      userMsg.className = 'message user';
+      userMsg.textContent = userText;
+      messagesDiv.appendChild(userMsg);
+      input.value = '';
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+      // Show loading spinner on right
+      const loadingMsg = document.createElement('div');
+      loadingMsg.className = 'message bot';
+      const loadingContent = document.createElement('div');
+      loadingContent.style.display = 'flex';
+      loadingContent.style.alignItems = 'center';
+      loadingContent.textContent = 'Generating answer';
+      const spinner = document.createElement('span');
+      spinner.className = 'spinner';
+      loadingContent.appendChild(spinner);
+      loadingMsg.appendChild(loadingContent);
+      messagesDiv.appendChild(loadingMsg);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+      try {
+        const res = await fetch('http://127.0.0.1:8000/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ question: userText })
+        });
+        const data = await res.json();
+
+        // Clear spinner and show results
+        loadingMsg.innerHTML = '';
+        const html = data.response
+          .split("\n")
+          .map(line => {
+            const parts = line.split('|'); // "title|image"
+            if(parts.length === 2) {
+              return `<div class="car-card">
+                        <div class="car-title">${parts[0]}</div>
+                        <img src="${parts[1]}" alt="Car image">
+                      </div>`;
+            }
+            return `<div>${line}</div>`;
+          })
+          .join('');
+        loadingMsg.innerHTML = html;
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+
+      } catch (err) {
+        console.error(err);
+        loadingMsg.textContent = "Oops, something went wrong.";
+      }
+    }
+
+    // Send message on Enter key
+    document.getElementById('userInput').addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
+  </script>
+</body>
+</html>
