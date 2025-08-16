@@ -229,3 +229,11 @@ def chat(query: UserQuery):
     session_id = query.session_id or str(uuid.uuid4())
     answer = ask_gpt(query.question, session_id=session_id)
     return {"response": answer, "session_id": session_id}
+
+# -------------------------
+# Run on Railway with dynamic PORT
+# -------------------------
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8080))  # Railway sets PORT dynamically
+    uvicorn.run("main:app", host="0.0.0.0", port=port)
