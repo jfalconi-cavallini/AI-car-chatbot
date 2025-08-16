@@ -207,6 +207,7 @@ def ask_gpt(user_question, session_id):
         return reply
 
     except Exception as e:
+        print("ERROR in ask_gpt", e)
         traceback.print_exc()
         return f"Oops, something went wrong: {e}"
 
