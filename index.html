@@ -8,7 +8,6 @@
     body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f7f7f7; }
     .chat-container { max-width: 700px; margin: 50px auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
 
-    /* Title bubble */
     .chat-title {
       display: block;
       background: #1a73e8;
@@ -33,7 +32,6 @@
     button { padding: 10px 15px; border-radius: 5px; border: none; background: #1a73e8; color: #fff; font-size: 16px; cursor: pointer; }
     button:hover { background: #1558b0; }
 
-    /* Spinner on the right, vertically centered */
     .spinner {
       border: 3px solid #f3f3f3;
       border-top: 3px solid #1a73e8;
@@ -48,7 +46,6 @@
     }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-    /* Car card styling */
     .car-card {
       display: flex;
       flex-direction: column;
@@ -74,6 +71,11 @@
   </div>
 
   <script>
+    // Pick API URL depending on environment
+    const API_URL = window.location.hostname === "localhost"
+      ? "http://127.0.0.1:8000/chat"
+      : "/chat";
+
     async function sendMessage() {
       const input = document.getElementById('userInput');
       const messagesDiv = document.getElementById('messages');
@@ -88,7 +90,7 @@
       input.value = '';
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
-      // Show loading spinner on right
+      // Show loading spinner
       const loadingMsg = document.createElement('div');
       loadingMsg.className = 'message bot';
       const loadingContent = document.createElement('div');
@@ -103,7 +105,7 @@
       messagesDiv.scrollTop = messagesDiv.scrollHeight;
 
       try {
-        const res = await fetch('http://127.0.0.1:8000/chat', {
+        const res = await fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ question: userText })
@@ -115,7 +117,7 @@
         const html = data.response
           .split("\n")
           .map(line => {
-            const parts = line.split('|'); // "title|image"
+            const parts = line.split('|');
             if(parts.length === 2) {
               return `<div class="car-card">
                         <div class="car-title">${parts[0]}</div>
@@ -134,7 +136,6 @@
       }
     }
 
-    // Send message on Enter key
     document.getElementById('userInput').addEventListener('keypress', (e) => {
       if (e.key === 'Enter') sendMessage();
     });
