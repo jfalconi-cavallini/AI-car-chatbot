@@ -5,140 +5,395 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>AI Car Advisor</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f7f7f7; }
-    .chat-container { max-width: 700px; margin: 50px auto; background: #fff; padding: 20px; border-radius: 10px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    .chat-title {
-      display: block;
-      background: #1a73e8;
-      color: #fff;
-      font-size: 24px;
-      font-weight: bold;
-      padding: 12px 20px;
-      border-radius: 25px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-      text-align: center;
-      margin: 0 auto 15px;
-      width: fit-content;
-    }
-
-    .messages { height: 500px; overflow-y: auto; padding: 10px; background: #fafafa; border-radius: 8px; border: 1px solid #ddd; margin-bottom: 15px; display: flex; flex-direction: column; gap: 10px; }
-    .message { margin: 0; max-width: 80%; padding: 10px; border-radius: 8px; line-height: 1.4; display: flex; align-items: center; position: relative; }
-    .user { background: #1a73e8; color: #fff; margin-left: auto; text-align: right; }
-    .bot { background: #e9ecef; color: #333; margin-right: auto; text-align: left; flex-direction: column; align-items: flex-start; }
-
-    .input-area { display: flex; gap: 10px; }
-    input[type=text] { flex: 1; padding: 10px; border-radius: 5px; border: 1px solid #ccc; font-size: 16px; }
-    button { padding: 10px 15px; border-radius: 5px; border: none; background: #1a73e8; color: #fff; font-size: 16px; cursor: pointer; }
-    button:hover { background: #1558b0; }
-
-    .spinner {
-      border: 3px solid #f3f3f3;
-      border-top: 3px solid #1a73e8;
-      border-radius: 50%;
-      width: 18px;
-      height: 18px;
-      animation: spin 1s linear infinite;
-      display: inline-block;
-      margin-left: 10px;
-      vertical-align: middle;
-      flex-shrink: 0;
-    }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-    .car-card {
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
       display: flex;
       flex-direction: column;
       align-items: center;
-      background: #fff;
-      padding: 10px;
-      border-radius: 8px;
-      box-shadow: 0 1px 5px rgba(0,0,0,0.1);
-      width: 100%;
+      padding: 20px;
     }
-    .car-card img { width: 200px; height: auto; border-radius: 6px; margin-top: 8px; }
-    .car-title { font-weight: bold; font-size: 16px; margin-bottom: 4px; color: #333; text-align: center; }
+
+    /* ---- Header ---- */
+    .header {
+      width: 100%;
+      max-width: 760px;
+      background: linear-gradient(135deg, #1a73e8, #0d47a1);
+      border-radius: 14px 14px 0 0;
+      padding: 18px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      box-shadow: 0 4px 20px rgba(26,115,232,0.3);
+    }
+    .header-title {
+      color: #fff;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .header-subtitle {
+      color: rgba(255,255,255,0.75);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+    .clear-btn {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 8px;
+      padding: 6px 14px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .clear-btn:hover { background: rgba(255,255,255,0.25); }
+
+    /* ---- Chat container ---- */
+    .chat-container {
+      width: 100%;
+      max-width: 760px;
+      background: #fff;
+      border-radius: 0 0 14px 14px;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.1);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ---- Messages ---- */
+    .messages {
+      height: 520px;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      scroll-behavior: smooth;
+    }
+
+    .message {
+      max-width: 85%;
+      padding: 10px 14px;
+      border-radius: 14px;
+      font-size: 14.5px;
+      line-height: 1.55;
+      word-break: break-word;
+      animation: fadeIn 0.2s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    .user {
+      background: #1a73e8;
+      color: #fff;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+
+    .bot {
+      background: #f1f3f4;
+      color: #202124;
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+      max-width: 92%;
+    }
+
+    /* ---- Suggestion chips ---- */
+    .chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+    .chip {
+      background: #fff;
+      border: 1.5px solid #1a73e8;
+      color: #1a73e8;
+      border-radius: 20px;
+      padding: 5px 13px;
+      font-size: 13px;
+      cursor: pointer;
+      transition: all 0.15s;
+      white-space: nowrap;
+    }
+    .chip:hover { background: #1a73e8; color: #fff; }
+
+    /* ---- Car cards ---- */
+    .bot-commentary {
+      margin-bottom: 10px;
+      color: #202124;
+    }
+
+    .car-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      background: #fff;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      gap: 12px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+      transition: box-shadow 0.2s;
+    }
+    .car-card:hover { box-shadow: 0 3px 12px rgba(0,0,0,0.1); }
+
+    .car-card-body { flex: 1; min-width: 0; }
+    .car-card-title { font-size: 15px; font-weight: 700; color: #202124; margin-bottom: 3px; }
+    .car-card-price { font-size: 18px; font-weight: 700; color: #1a73e8; margin-bottom: 6px; }
+    .car-card-details { display: flex; flex-wrap: wrap; gap: 8px; font-size: 13px; color: #555; margin-bottom: 6px; }
+    .car-card-details span { background: #f1f3f4; border-radius: 6px; padding: 2px 8px; }
+
+    .car-highlights { font-size: 12px; color: #d6820a; font-weight: 600; margin-bottom: 8px; }
+
+    .view-btn {
+      display: inline-block;
+      background: #1a73e8;
+      color: #fff;
+      text-decoration: none;
+      font-size: 13px;
+      font-weight: 600;
+      padding: 5px 14px;
+      border-radius: 8px;
+      transition: background 0.2s;
+    }
+    .view-btn:hover { background: #1558b0; }
+
+    .car-card img {
+      width: 130px;
+      height: 90px;
+      object-fit: cover;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+
+    .refine-hint {
+      font-size: 12.5px;
+      color: #777;
+      margin-top: 4px;
+      padding: 6px 10px;
+      background: #f8f9fa;
+      border-radius: 8px;
+      border-left: 3px solid #1a73e8;
+    }
+
+    /* ---- Typing indicator ---- */
+    .typing-indicator {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      font-size: 14px;
+      color: #555;
+    }
+    .dots { display: flex; gap: 4px; }
+    .dot {
+      width: 7px; height: 7px;
+      background: #1a73e8;
+      border-radius: 50%;
+      animation: bounce 1.2s infinite ease-in-out;
+    }
+    .dot:nth-child(2) { animation-delay: 0.2s; }
+    .dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes bounce { 0%,80%,100% { transform: scale(0.7); opacity: 0.5; } 40% { transform: scale(1); opacity: 1; } }
+
+    /* ---- Input area ---- */
+    .input-area {
+      display: flex;
+      gap: 10px;
+      padding: 16px 20px;
+      border-top: 1px solid #e0e0e0;
+      background: #fafafa;
+      border-radius: 0 0 14px 14px;
+    }
+    .input-area input {
+      flex: 1;
+      padding: 11px 16px;
+      border-radius: 24px;
+      border: 1.5px solid #ddd;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+      background: #fff;
+    }
+    .input-area input:focus { border-color: #1a73e8; }
+    .send-btn {
+      padding: 11px 22px;
+      border-radius: 24px;
+      border: none;
+      background: #1a73e8;
+      color: #fff;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+    .send-btn:hover { background: #1558b0; }
+    .send-btn:disabled { background: #aaa; cursor: not-allowed; }
   </style>
 </head>
 <body>
+
+  <div class="header">
+    <div>
+      <div class="header-title">🚗 AI Car Advisor</div>
+      <div class="header-subtitle">Powered by GPT-4o · Find your perfect car</div>
+    </div>
+    <button class="clear-btn" onclick="clearChat()">Clear Chat</button>
+  </div>
+
   <div class="chat-container">
-    <div class="chat-title">AI POWERED CAR ADVISOR</div>
     <div class="messages" id="messages"></div>
     <div class="input-area">
-      <input type="text" id="userInput" placeholder="Ask about cars..." />
-      <button onclick="sendMessage()">Send</button>
+      <input type="text" id="userInput" placeholder="Ask about cars, budgets, preferences..." autocomplete="off" />
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()">Send</button>
     </div>
   </div>
 
   <script>
-    // Pick API URL depending on environment
     const API_URL = window.location.hostname === "localhost"
       ? "http://127.0.0.1:8000/chat"
       : "/chat";
 
+    // Persist session across page reloads (tab-scoped)
+    let sessionId = sessionStorage.getItem("carChatSessionId") || null;
+
+    const WELCOME_MSG = `👋 Hi! I'm <b>Alex</b>, your AI car advisor.<br>
+Tell me what you're looking for — budget, make, style — and I'll find the best matches from our inventory.`;
+
+    const SUGGESTION_CHIPS = [
+      "Show me SUVs under $35k",
+      "Any trucks with low mileage?",
+      "Best deal under $20k",
+      "Show me red cars",
+      "Newest cars available",
+    ];
+
+    function addMessage(html, role, allowHTML = false) {
+      const messagesDiv = document.getElementById("messages");
+      const div = document.createElement("div");
+      div.className = `message ${role}`;
+      if (allowHTML) {
+        div.innerHTML = html;
+      } else {
+        div.textContent = html;
+      }
+      messagesDiv.appendChild(div);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      return div;
+    }
+
+    function addTypingIndicator() {
+      const messagesDiv = document.getElementById("messages");
+      const div = document.createElement("div");
+      div.className = "message bot";
+      div.id = "typing-indicator";
+      div.innerHTML = `<div class="typing-indicator">
+        Alex is thinking
+        <div class="dots">
+          <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        </div>
+      </div>`;
+      messagesDiv.appendChild(div);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      return div;
+    }
+
+    function addChips() {
+      const messagesDiv = document.getElementById("messages");
+      const div = document.createElement("div");
+      div.className = "chips";
+      div.id = "suggestion-chips";
+      SUGGESTION_CHIPS.forEach(text => {
+        const chip = document.createElement("button");
+        chip.className = "chip";
+        chip.textContent = text;
+        chip.onclick = () => {
+          div.remove();
+          document.getElementById("userInput").value = text;
+          sendMessage();
+        };
+        div.appendChild(chip);
+      });
+      messagesDiv.appendChild(div);
+      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }
+
     async function sendMessage() {
-      const input = document.getElementById('userInput');
-      const messagesDiv = document.getElementById('messages');
+      const input = document.getElementById("userInput");
+      const sendBtn = document.getElementById("sendBtn");
       const userText = input.value.trim();
       if (!userText) return;
 
-      // Show user's message
-      const userMsg = document.createElement('div');
-      userMsg.className = 'message user';
-      userMsg.textContent = userText;
-      messagesDiv.appendChild(userMsg);
-      input.value = '';
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      // Remove suggestion chips once user engages
+      const chips = document.getElementById("suggestion-chips");
+      if (chips) chips.remove();
 
-      // Show loading spinner
-      const loadingMsg = document.createElement('div');
-      loadingMsg.className = 'message bot';
-      const loadingContent = document.createElement('div');
-      loadingContent.style.display = 'flex';
-      loadingContent.style.alignItems = 'center';
-      loadingContent.textContent = 'Generating answer';
-      const spinner = document.createElement('span');
-      spinner.className = 'spinner';
-      loadingContent.appendChild(spinner);
-      loadingMsg.appendChild(loadingContent);
-      messagesDiv.appendChild(loadingMsg);
-      messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      addMessage(userText, "user");
+      input.value = "";
+      sendBtn.disabled = true;
+
+      const typingDiv = addTypingIndicator();
 
       try {
         const res = await fetch(API_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: userText })
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: userText, session_id: sessionId })
         });
+
         const data = await res.json();
 
-        // Clear spinner and show results
-        loadingMsg.innerHTML = '';
-        const html = data.response
-          .split("\n")
-          .map(line => {
-            const parts = line.split('|');
-            if(parts.length === 2) {
-              return `<div class="car-card">
-                        <div class="car-title">${parts[0]}</div>
-                        <img src="${parts[1]}" alt="Car image">
-                      </div>`;
-            }
-            return `<div>${line}</div>`;
-          })
-          .join('');
-        loadingMsg.innerHTML = html;
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        // Persist session ID so every subsequent message stays in the same context
+        if (data.session_id) {
+          sessionId = data.session_id;
+          sessionStorage.setItem("carChatSessionId", sessionId);
+        }
+
+        typingDiv.remove();
+
+        const botMsg = document.createElement("div");
+        botMsg.className = "message bot";
+        botMsg.innerHTML = data.response;  // backend returns HTML
+        document.getElementById("messages").appendChild(botMsg);
+        document.getElementById("messages").scrollTop = document.getElementById("messages").scrollHeight;
 
       } catch (err) {
         console.error(err);
-        loadingMsg.textContent = "Oops, something went wrong.";
+        typingDiv.remove();
+        addMessage("Oops, something went wrong. Please try again.", "bot");
+      } finally {
+        sendBtn.disabled = false;
+        input.focus();
       }
     }
 
-    document.getElementById('userInput').addEventListener('keypress', (e) => {
-      if (e.key === 'Enter') sendMessage();
+    function clearChat() {
+      sessionId = null;
+      sessionStorage.removeItem("carChatSessionId");
+      const messagesDiv = document.getElementById("messages");
+      messagesDiv.innerHTML = "";
+      showWelcome();
+    }
+
+    function showWelcome() {
+      addMessage(WELCOME_MSG, "bot", true);
+      addChips();
+    }
+
+    document.getElementById("userInput").addEventListener("keydown", e => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
+      }
     });
+
+    // Show welcome on load
+    showWelcome();
   </script>
 </body>
 </html>

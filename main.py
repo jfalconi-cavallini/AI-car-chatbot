@@ -9,22 +9,14 @@ import traceback
 import json
 import uuid
 
-# -------------------------
-# Load environment variables
-# -------------------------
 load_dotenv()
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 CAR_API_URL = os.getenv("CAR_API_URL")
 openai.api_key = OPENAI_API_KEY
 
-# -------------------------
-# Session memory
-# -------------------------
-sessions = {}  # session_id -> {"history": [...]}
+# session_id -> {"history": [...]}
+sessions = {}
 
-# -------------------------
-# Color normalization
-# -------------------------
 COLOR_MAP = {
     "blue": ["horizon blue metallic", "deep sea blue metallic", "oxford blue", "alpine blue"],
     "red": ["crimson red", "candy apple red", "ruby red", "inferno red"],
@@ -44,22 +36,17 @@ def normalize_color(fancy_name):
             return simple
     return "other"
 
-# -------------------------
-# Function to query inventory
-# -------------------------
 def get_cars(make=None, model=None, year=None, max_price=None, max_mileage=None,
-             exterior_color=None, interior_color=None, relax_filters=False, limit=5):
+             exterior_color=None, interior_color=None, relax_filters=False, limit=5, offset=0):
     try:
         response = requests.get(CAR_API_URL)
         response.raise_for_status()
         cars = response.json()
 
-        # Normalize colors
         for c in cars:
             c['normalized_exterior'] = normalize_color(c.get('exterior_color'))
             c['normalized_interior'] = normalize_color(c.get('interior_color'))
 
-        # Filter helper
         def apply_filters(cars_list, strict=True):
             result = cars_list
             if make:
@@ -82,7 +69,6 @@ def get_cars(make=None, model=None, year=None, max_price=None, max_mileage=None,
         if not filtered and relax_filters:
             filtered = apply_filters(cars, strict=False)
 
-        # Ranking: prioritize matches closest to all filters
         def score(car):
             s = 0
             if make and make.lower() in car.get('make', '').lower(): s += 1
@@ -96,129 +82,188 @@ def get_cars(make=None, model=None, year=None, max_price=None, max_mileage=None,
 
         filtered.sort(key=score)
 
-        # Highlight extremes
-        if filtered:
-            cheapest = min(filtered, key=lambda x: x.get('price', float('inf')))
-            most_expensive = max(filtered, key=lambda x: x.get('price', 0))
-            lowest_mileage = min(filtered, key=lambda x: x.get('mileage', float('inf')))
-            highest_mileage = max(filtered, key=lambda x: x.get('mileage', 0))
-            newest = max(filtered, key=lambda x: x.get('year', 0))
-            oldest = min(filtered, key=lambda x: x.get('year', float('inf')))
-            for c in filtered:
+        page = filtered[offset:offset + limit]
+
+        if page:
+            all_prices = [c.get('price', float('inf')) for c in page]
+            all_mileages = [c.get('mileage', float('inf')) for c in page]
+            all_years = [c.get('year', 0) for c in page]
+            for c in page:
                 flags = []
-                if c == cheapest: flags.append("💰 Cheapest")
-                if c == most_expensive: flags.append("💎 Most Expensive")
-                if c == lowest_mileage: flags.append("🛣️ Lowest Mileage")
-                if c == highest_mileage: flags.append("🚗 Highest Mileage")
-                if c == newest: flags.append("🆕 Newest")
-                if c == oldest: flags.append("📜 Oldest")
+                if c.get('price') == min(all_prices): flags.append("💰 Cheapest")
+                if c.get('price') == max(all_prices): flags.append("💎 Most Expensive")
+                if c.get('mileage') == min(all_mileages): flags.append("🛣️ Lowest Mileage")
+                if c.get('mileage') == max(all_mileages): flags.append("🚗 Highest Mileage")
+                if c.get('year') == max(all_years): flags.append("🆕 Newest")
+                if c.get('year') == min(all_years): flags.append("📜 Oldest")
                 c['highlights'] = ", ".join(flags)
 
-        return filtered[:limit]
+        return page
 
     except Exception:
         traceback.print_exc()
         return []
 
-# -------------------------
-# GPT with smart function calling
-# -------------------------
+SYSTEM_PROMPT = """You are Alex, a friendly and knowledgeable car dealership AI assistant.
+Your job is to help customers find the perfect vehicle.
+
+Important rules:
+- When you call get_cars, the tool result contains the car data. Reference those specific cars in your reply.
+- Always mention the specific year/make/model/price when referencing cars you found.
+- If the user says "more", "show more", or "next", call get_cars again with a higher offset (e.g. offset=5 for page 2).
+- If asked "which is cheapest/newest/lowest mileage", look at the highlights in the tool result and answer directly.
+- Remember all cars shown in this conversation and support comparison requests.
+- If no exact match is found, suggest the closest alternatives.
+- Keep replies concise — let the car cards do the visual heavy lifting.
+"""
+
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_cars",
+            "description": "Search the car inventory. Use offset for pagination (0 = first page, 5 = second page, etc.).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "make": {"type": "string", "description": "Car brand (e.g. Toyota, Ford, BMW)"},
+                    "model": {"type": "string", "description": "Car model (e.g. Camry, F-150, 3 Series)"},
+                    "year": {"type": "integer", "description": "Exact model year"},
+                    "max_price": {"type": "number", "description": "Maximum price in USD"},
+                    "max_mileage": {"type": "integer", "description": "Maximum mileage"},
+                    "exterior_color": {"type": "string", "description": "Exterior color (e.g. blue, red, black, white, silver)"},
+                    "interior_color": {"type": "string", "description": "Interior color"},
+                    "limit": {"type": "integer", "description": "Number of results per page (default 5)"},
+                    "offset": {"type": "integer", "description": "Pagination offset (default 0)"},
+                },
+                "required": []
+            }
+        }
+    }
+]
+
 def ask_gpt(user_question, session_id):
     try:
-        # Initialize session if new
         if session_id not in sessions:
             sessions[session_id] = {"history": []}
 
         history = sessions[session_id]["history"]
         history.append({"role": "user", "content": user_question})
 
-        system_prompt = (
-            "You are a fast, friendly, professional car dealership assistant. "
-            "Always greet new users with a welcome message. "
-            "Engage briefly, then show cars if the user asks. "
-            "Present cars with year, make, model, price, mileage, exterior/interior colors, image, link, and highlight extremes. "
-            "If the user asks for 'any car', show random cars first, then ask if they want to refine by make, model, year, price, or mileage. "
-            "Remember previous user preferences during the session. "
-            "Handle vague queries politely and support 'more' to show additional cars."
-        )
-
-        # GPT call
-        tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_cars",
-                    "description": "Retrieve car inventory based on filters",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "make": {"type": "string"},
-                            "model": {"type": "string"},
-                            "year": {"type": "integer"},
-                            "max_price": {"type": "number"},
-                            "max_mileage": {"type": "integer"},
-                            "exterior_color": {"type": "string"},
-                            "interior_color": {"type": "string"},
-                            "limit": {"type": "integer"},
-                        },
-                        "required": []
-                    }
-                }
-            }
-        ]
+        # Prevent context overflow
+        if len(history) > 24:
+            sessions[session_id]["history"] = history[-24:]
+            history = sessions[session_id]["history"]
 
         response = openai.chat.completions.create(
             model="gpt-4o-mini",
-            messages=[{"role": "system", "content": system_prompt}] + history,
-            tools=tools,
+            messages=[{"role": "system", "content": SYSTEM_PROMPT}] + history,
+            tools=TOOLS,
             tool_choice="auto"
         )
 
         msg = response.choices[0].message
 
-        # If GPT wants to call get_cars
         if hasattr(msg, "tool_calls") and msg.tool_calls:
+            # Store the assistant's tool-call message so future turns know what was requested
+            history.append({
+                "role": "assistant",
+                "content": msg.content,
+                "tool_calls": [
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {"name": tc.function.name, "arguments": tc.function.arguments}
+                    }
+                    for tc in msg.tool_calls
+                ]
+            })
+
+            all_cars = []
             for tool_call in msg.tool_calls:
                 if tool_call.function.name == "get_cars":
                     args = json.loads(tool_call.function.arguments)
                     cars = get_cars(**args, relax_filters=True)
+                    all_cars.extend(cars)
 
-                    if not cars:
-                        return "Hmm, I couldn’t find cars matching exactly. Want me to show some similar options?"
+                    # Store the tool result so GPT can reference these specific cars later
+                    car_context = [
+                        {
+                            "year": c.get("year"), "make": c.get("make"), "model": c.get("model"),
+                            "price": c.get("price"), "mileage": c.get("mileage"),
+                            "exterior_color": c.get("exterior_color"), "interior_color": c.get("interior_color"),
+                            "highlights": c.get("highlights", "")
+                        }
+                        for c in cars
+                    ]
+                    history.append({
+                        "role": "tool",
+                        "tool_call_id": tool_call.id,
+                        "content": json.dumps(car_context) if car_context else "No cars found matching those criteria."
+                    })
 
-                    listings_html = "<b>Here are the top cars I found for you:</b><br><br>"
-                    for c in cars:
-                        highlights = f"<i>{c.get('highlights')}</i><br>" if c.get('highlights') else ""
-                        title = (
-                            f"<b>{c['year']} {c['make']} {c['model']}</b><br>"
-                            f"Price: ${c['price']:,} | Mileage: {c['mileage']:,} miles<br>"
-                            f"Exterior: {c.get('exterior_color', 'N/A')} | Interior: {c.get('interior_color', 'N/A')}<br>"
-                            f"{highlights}"
-                        )
-                        img_html = f"<img src='{c.get('image_url')}' alt='Car image' style='max-width:200px;border-radius:5px;'><br>" if c.get('image_url') else ""
-                        link_html = f"<a href='{c.get('link')}' target='_blank'>View Listing</a><br><br>"
-                        listings_html += title + img_html + link_html
+            if not all_cars:
+                no_match = "I couldn't find any cars matching those filters. Want me to broaden the search or try different criteria?"
+                history.append({"role": "assistant", "content": no_match})
+                return no_match
 
-                    listings_html += "<i>You can refine by make, model, year, price, mileage, or type 'more' to see additional cars.</i>"
-                    return listings_html
+            # Second GPT call: generate a natural-language commentary that references the actual results
+            follow_up = openai.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "system", "content": SYSTEM_PROMPT}] + history
+            )
+            commentary = follow_up.choices[0].message.content or ""
+            history.append({"role": "assistant", "content": commentary})
 
-        reply = msg.content or "Sorry, I couldn’t understand your request."
+            # Build the HTML response
+            output = ""
+            if commentary:
+                output += f"<div class='bot-commentary'>{commentary}</div>"
+
+            for c in all_cars:
+                highlights_html = f"<div class='car-highlights'>{c['highlights']}</div>" if c.get('highlights') else ""
+                img_html = (
+                    f"<img src='{c['image_url']}' alt='{c.get('make','')} {c.get('model','')}' "
+                    f"loading='lazy' onerror=\"this.style.display='none'\">"
+                    if c.get('image_url') else ""
+                )
+                link_html = (
+                    f"<a href='{c['link']}' target='_blank' class='view-btn'>View Listing →</a>"
+                    if c.get('link') else ""
+                )
+
+                output += f"""<div class='car-card'>
+  <div class='car-card-body'>
+    <div class='car-card-title'>{c.get('year')} {c.get('make')} {c.get('model')}</div>
+    <div class='car-card-price'>${c.get('price', 0):,}</div>
+    <div class='car-card-details'>
+      <span>🛣️ {c.get('mileage', 0):,} mi</span>
+      <span>🎨 {c.get('exterior_color', 'N/A')}</span>
+      <span>🪑 {c.get('interior_color', 'N/A')}</span>
+    </div>
+    {highlights_html}
+    {link_html}
+  </div>
+  {img_html}
+</div>"""
+
+            output += "<div class='refine-hint'>💡 Ask me to compare, filter further, or say <b>more</b> for additional results.</div>"
+            return output
+
+        reply = msg.content or "Sorry, I didn't understand that. Could you rephrase?"
         history.append({"role": "assistant", "content": reply})
         return reply
 
     except Exception as e:
-        print("ERROR in ask_gpt", e)
+        print("ERROR in ask_gpt:", e)
         traceback.print_exc()
-        return f"Oops, something went wrong: {e}"
+        return "Something went wrong on my end. Please try again."
 
-# -------------------------
-# FastAPI setup
-# -------------------------
 app = FastAPI()
 
 class UserQuery(BaseModel):
     question: str
-    session_id: str = None  # optional
+    session_id: str = None
 
 @app.get("/", response_class=HTMLResponse)
 def get_home():
@@ -231,10 +276,7 @@ def chat(query: UserQuery):
     answer = ask_gpt(query.question, session_id=session_id)
     return {"response": answer, "session_id": session_id}
 
-# -------------------------
-# Run on Railway with dynamic PORT
-# -------------------------
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8080))  # Railway sets PORT dynamically
+    port = int(os.environ.get("PORT", 8080))
     uvicorn.run("main:app", host="0.0.0.0", port=port)
