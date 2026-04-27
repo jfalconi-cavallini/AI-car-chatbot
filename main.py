@@ -37,8 +37,72 @@ def normalize_color(fancy_name):
             return simple
     return "other"
 
+VEHICLE_TYPE_KEYWORDS = {
+    "suv": [
+        "explorer", "escape", "edge", "expedition", "bronco", "ecosport", "flex",
+        "equinox", "traverse", "tahoe", "suburban", "trailblazer", "trax", "blazer",
+        "rav4", "highlander", "4runner", "sequoia", "venza", "land cruiser",
+        "cr-v", "pilot", "hr-v", "passport",
+        "grand cherokee", "cherokee", "wrangler", "compass", "renegade", "gladiator",
+        "rogue", "pathfinder", "murano", "armada", "kicks", "xterra",
+        "yukon", "acadia", "terrain", "envoy", "envision", "enclave", "encore",
+        "sportage", "sorento", "telluride", "seltos", "niro", "soul",
+        "santa fe", "tucson", "palisade", "kona", "venue",
+        "range rover", "defender", "discovery",
+        "gx", "lx", "nx", "rx", "ux",
+        "xt4", "xt5", "xt6", "escalade",
+        "navigator", "aviator", "corsair",
+        "mdx", "rdx",
+        "qx50", "qx55", "qx60", "qx80",
+        "cayenne", "macan",
+        "forester", "outback", "ascent", "crosstrek",
+        "cx-3", "cx-30", "cx-5", "cx-50", "cx-9",
+        "tiguan", "atlas", "taos", "id.4",
+        "xc40", "xc60", "xc90",
+        "q3", "q5", "q7", "q8",
+        "x1", "x2", "x3", "x4", "x5", "x6", "x7",
+        "gla", "glb", "glc", "gle", "gls",
+        "model x", "model y",
+        "gv70", "gv80",
+        "outlander", "eclipse cross",
+        "durango", "journey",
+        "c-hr",
+    ],
+    "truck": [
+        "f-150", "f-250", "f-350", "f-450", "f150", "f250", "f350",
+        "silverado", "sierra", "ram 1500", "ram 2500", "ram 3500",
+        "tacoma", "tundra", "frontier", "titan",
+        "colorado", "canyon", "ranger", "maverick",
+        "ridgeline", "santa cruz",
+    ],
+    "sedan": [
+        "camry", "corolla", "accord", "civic", "altima", "sentra", "maxima",
+        "malibu", "impala", "cruze", "sonic",
+        "fusion", "focus", "taurus",
+        "jetta", "passat",
+        "3 series", "5 series", "7 series",
+        "c-class", "e-class", "s-class",
+        "a4", "a6", "a8",
+        "is", "es", "gs", "ls",
+        "model 3", "model s",
+        "elantra", "sonata",
+        "optima", "forte", "stinger", "k5",
+        "charger", "challenger",
+        "300",
+    ],
+    "minivan": [
+        "odyssey", "sienna", "pacifica", "grand caravan", "carnival", "sedona",
+    ],
+    "coupe": [
+        "mustang", "camaro", "corvette", "challenger", "charger",
+        "4 series", "2 series", "6 series", "8 series",
+        "a5", "tt",
+    ],
+}
+
 def get_cars(make=None, model=None, year=None, max_price=None, max_mileage=None,
-             exterior_color=None, interior_color=None, relax_filters=False, limit=5, offset=0):
+             exterior_color=None, interior_color=None, vehicle_type=None,
+             relax_filters=False, limit=5, offset=0):
     try:
         response = requests.get(CAR_API_URL)
         response.raise_for_status()
@@ -48,8 +112,18 @@ def get_cars(make=None, model=None, year=None, max_price=None, max_mileage=None,
             c['normalized_exterior'] = normalize_color(c.get('exterior_color'))
             c['normalized_interior'] = normalize_color(c.get('interior_color'))
 
+        vtype_keywords = VEHICLE_TYPE_KEYWORDS.get((vehicle_type or "").lower(), [])
+
+        def matches_vehicle_type(car):
+            if not vtype_keywords:
+                return True
+            name = (car.get('model', '') + ' ' + car.get('make', '')).lower()
+            return any(kw in name for kw in vtype_keywords)
+
         def apply_filters(cars_list, strict=True):
             result = cars_list
+            if vehicle_type:
+                result = [c for c in result if matches_vehicle_type(c)]
             if make:
                 result = [c for c in result if make.lower() in c.get('make', '').lower()] if not strict else [c for c in result if c.get('make', '').lower() == make.lower()]
             if model:
@@ -57,7 +131,7 @@ def get_cars(make=None, model=None, year=None, max_price=None, max_mileage=None,
             if year:
                 result = [c for c in result if c.get('year') == year]
             if max_price:
-                result = [c for c in result if c.get('price', 0) <= max_price]
+                result = [c for c in result if 0 < c.get('price', 0) <= max_price]
             if max_mileage:
                 result = [c for c in result if c.get('mileage', 0) <= max_mileage]
             if exterior_color:
@@ -72,10 +146,11 @@ def get_cars(make=None, model=None, year=None, max_price=None, max_mileage=None,
 
         def score(car):
             s = 0
+            if vehicle_type and matches_vehicle_type(car): s += 2
             if make and make.lower() in car.get('make', '').lower(): s += 1
             if model and model.lower() in car.get('model', '').lower(): s += 1
             if year and car.get('year') == year: s += 1
-            if max_price and car.get('price', 0) <= max_price: s += 1
+            if max_price and 0 < car.get('price', 0) <= max_price: s += 1
             if max_mileage and car.get('mileage', 0) <= max_mileage: s += 1
             if exterior_color and car['normalized_exterior'] == (exterior_color or "").lower(): s += 1
             if interior_color and car['normalized_interior'] == (interior_color or "").lower(): s += 1
@@ -134,6 +209,7 @@ TOOLS = [
                     "max_mileage": {"type": "integer", "description": "Maximum mileage"},
                     "exterior_color": {"type": "string", "description": "Exterior color (e.g. blue, red, black, white, silver)"},
                     "interior_color": {"type": "string", "description": "Interior color"},
+                    "vehicle_type": {"type": "string", "description": "Body style / vehicle category: suv, truck, sedan, minivan, coupe"},
                     "limit": {"type": "integer", "description": "Number of results per page (default 5)"},
                     "offset": {"type": "integer", "description": "Pagination offset (default 0)"},
                 },
@@ -184,6 +260,7 @@ def ask_gpt(user_question, session_id):
             for tool_call in msg.tool_calls:
                 if tool_call.function.name == "get_cars":
                     args = json.loads(tool_call.function.arguments)
+                    args.pop("relax_filters", None)
                     cars = get_cars(**args, relax_filters=True)
                     all_cars.extend(cars)
 
