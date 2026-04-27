@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 import os
 import requests
 import openai
+from typing import Optional
 from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.responses import HTMLResponse
@@ -263,7 +264,7 @@ app = FastAPI()
 
 class UserQuery(BaseModel):
     question: str
-    session_id: str = None
+    session_id: Optional[str] = None
 
 @app.get("/", response_class=HTMLResponse)
 def get_home():
